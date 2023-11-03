@@ -1,0 +1,13 @@
+localhost
+127.0.0.1
+origin
+develop
+admin
+local
+staging
+stage
+stg
+test
+testing
+preprod
+pre-production

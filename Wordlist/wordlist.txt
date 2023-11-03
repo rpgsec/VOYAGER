@@ -1,0 +1,9 @@
+/
+/idonotexist
+/openapi.json
+/api-docs
+/api/swagger
+/swagger
+/swagger.json
+/swagger.yaml
+/liveops/status
