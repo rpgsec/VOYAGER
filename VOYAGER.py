@@ -3,34 +3,51 @@ import subprocess
 import csv
 import requests
 import threading
+import platform
+import json
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 from tqdm import tqdm
 
+os_name = platform.system()
+print("Operating System: ", os_name)
 
+if os_name == "Windows":
+    path_wordlist_path = "C:\\auto\\wordlist\\yahoo.txt"
+    vhost_wordlist_path = "C:\\auto\\Wordlist\\vhosts_wordlist_test.txt"
+    base_directory = os.path.join("C:\\", "auto")
 
-# Constants for Windows
-# path_wordlist_path = "C:\\auto\\wordlist\\yahoo.txt"
-# vhost_wordlist_path = "C:\\auto\\Wordlist\\vhosts_wordlist_main.txt"
-# base_directory = os.path.join("C:\\", "auto")
+    print(r"""
+      
+              //-A-\\
+        ___---=======---___
+    (=__\\    /.. ..\    //__=)
+           ---\__O__/---
+              VOYAGER
 
-print("""
-         
-        //-A-\\\\
-  ___---=======---___
-(=__\\  //.. ..\\\\   /__=)
-     ---\__O__/---
-        VOYAGER
+    """)
+else: 
+    # Get the current working directory
+    current_directory = os.getcwd()
 
+    # Create the complete paths using the current directory and relative paths
+    path_wordlist_path = os.path.join(current_directory, "Wordlist/wordlist.txt")
+    vhost_wordlist_path = os.path.join(current_directory, 'Wordlist/vhosts_wordlist_test.txt')
+    base_directory = os.path.join(current_directory)
 
-""")
+    # path_wordlist_path = "/Users/rpuri/Desktop/Hackathon/Wordlist/wordlist.txt"
+    # vhost_wordlist_path = '/Users/rpuri/Desktop/Hackathon/Wordlist/vhosts_wordlist_main.txt'
+    # base_directory = '/Users/rpuri/Desktop/Hackathon' 
 
-# Constants for Linux
-path_wordlist_path = "/Users/rpuri/Desktop/Hackathon/Wordlist/wordlist.txt"
-vhost_wordlist_path = '/Users/rpuri/Desktop/Hackathon/Wordlist/vhosts_wordlist_main.txt'
-base_directory = '/Users/rpuri/Desktop/Hackathon' 
+    print(r"""
+      
+              //-A-\\
+        ___---=======---___
+    (=__\\    /.. ..\    //__=)
+           ---\__O__/---
+              VOYAGER
 
-
+    """)
 
 def print_yellow(prompt_text):
     print("\033[93m" + prompt_text + "\033[0m", end='')
@@ -45,42 +62,39 @@ def is_valid_domain(domain):
     except ValueError:
         return False
 
-###
-
 def create_csv_output(output_file, csv_output_file):
     with open(output_file, 'r') as file:
         lines = file.readlines()
 
     with open(csv_output_file, 'w') as csvfile:
-        fieldnames = ["URL", "Status", "Size", "Words", "Lines", "Duration"]
+        fieldnames = ["Status", "Size", "Words", "URL"]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-
         writer.writeheader()
 
         status_parts = {}
 
         for line in lines:
-            if '[Status:' in line:
-                # Remove unwanted characters and split fields by ','
-                info_parts = line.replace('[2K[', '').replace('][0m', '').split(',')
+            # Remove unwanted characters
+            stripped_line = line.replace('[2K', '').replace('[0m', '')
+
+            if '[Status:' in stripped_line:
+                # Split fields by ',' to extract information
+                info_parts = stripped_line.replace('[', '').replace(']', '').split(',')
                 status_parts = {part.split(':')[0].strip(): part.split(':')[1].strip() for part in info_parts}
-            elif '| URL |' in line:
-                # Strip away unnecessary leading characters and whitespace
-                url = line.replace('[2K| URL |', '').strip()
+            elif '| URL |' in stripped_line:
+                # Extract URL
+                url = stripped_line.replace('| URL |', '').strip()
 
-                writer.writerow({
-                    "URL": url,
-                    "Status": status_parts.get('Status'),
-                    "Size": status_parts.get('Size'),
-                    "Words": status_parts.get('Words'),
-                    "Lines": status_parts.get('Lines'),
-                    "Duration": status_parts.get('Duration'),
-                })
-
-                # Clear status_parts for the next set of output
-                status_parts = {}
-
-###
+                # Write to CSV only when all parts are available
+                if status_parts:
+                    writer.writerow({
+                        "Status": status_parts.get('Status'),
+                        "Size": status_parts.get('Size'),
+                        "Words": status_parts.get('Words'),
+                        "URL": url,
+                    })
+                    # Empty the dictionary for the next set of values
+                    status_parts = {}
 
 def remove_empty_files(directory):
     for filename in os.listdir(directory):
@@ -89,9 +103,6 @@ def remove_empty_files(directory):
             if os.path.getsize(file_path) == 0:
                 os.remove(file_path)
                 #print(f"Deleted empty file: {file_path}")
-
-
-
 
 def execute_command(cmd, tool_name, print_completed=True):   # Changed here
     try:
@@ -108,7 +119,7 @@ def execute_command(cmd, tool_name, print_completed=True):   # Changed here
         return False
 
 def run_subfinder(target_domain, output_dir):
-    tqdm.write("Starting Subfinder...")
+    # tqdm.write("Starting Subfinder...")
     output_path = os.path.join(output_dir, 'subfinder_output.txt')
     cmd = f"subfinder -d {target_domain} -o {output_path}"
     return execute_command(cmd, "Subfinder")
@@ -117,7 +128,7 @@ def run_tool(input_path, output_dir, tool):
     tqdm.write(f"Starting {tool}...")
     if tool == 'naabu':
         output_file = "naabu_output.csv"
-        cmd = f'naabu -l {input_path} -o {output_dir}/{output_file} -p 80,443,4443 -v -csv -rate 10000 -retries 1 -warm-up-time 0 -c 50'
+        cmd = f'naabu -l {input_path} -o {output_dir}/{output_file} -p 443,4443 -csv -rate 10000 -retries 1 -warm-up-time 0 -c 50'
     elif tool == 'httprobe':
         output_file = "httprobe_output.txt"
         cmd = f'cat {input_path} | httprobe -c 50 -t 500 -p 443,4443'
@@ -135,7 +146,6 @@ def run_tool(input_path, output_dir, tool):
     return execute_command(cmd, tool)
 
 # the rest of your functions...
-
 def run_ffuf(subdomain, path_wordlist_path, output_file):
     cmd = f'ffuf -mode clusterbomb -w "{path_wordlist_path}":WORD -u "https://{subdomain}/WORD" -v -r -mc 200,403,401 -of csv -t 100'
     #cmd = f'ffuf -mode clusterbomb -w "{path_wordlist_path}":WORD -u "https://{subdomain}/WORD" -r -mc 200,403,401 -t 100 | grep "| URL"'
@@ -148,15 +158,31 @@ def run_ffuf(subdomain, path_wordlist_path, output_file):
             tqdm.write(f"Error occurred while running ffuf for {subdomain}: {result.stderr}")
     except Exception as e:
         tqdm.write(f"Exception occurred while running ffuf for {subdomain}: {str(e)}")
-    #filter_file(output_file)
     
-def run_waybackurls(subdomain, output_dir):
+    
+def run_waybackurls_others(subdomain, output_dir):
     output_path = os.path.join(output_dir, f"waybackurls_{subdomain.replace('.', '_')}.txt")
     cmd = f'echo {subdomain} | waybackurls > {output_path}'
     result = execute_command(cmd, "Waybackurls", print_completed=False)
     
     return result
+
+def run_waybackurls_windows(subdomain, output_dir):
+    output_path = os.path.join(output_dir, f"waybackurls_{subdomain.replace('.', '_')}.txt")
+    cmd = f"waybackurls {subdomain} > {output_path}"
+    result = execute_command(cmd, "Waybackurls", print_completed=False)
     
+    return result
+
+# write_lock = threading.Lock()
+
+# def run_waybackurls_windows(subdomain, output_dir):
+#     with write_lock:
+#         output_path = os.path.join(output_dir, f"waybackurls_{subdomain.replace('.', '_')}.json")
+#         cmd = f"waybackurls {subdomain} > {output_path}"
+#     result = execute_command(cmd, "Waybackurls", print_completed=False)
+    
+#     return result
 
 def check_vhost(vhost, subdomain, results_file, results_file_lock):
     for host in [f"{vhost}.{subdomain}", f"{vhost}-{subdomain}"]:
@@ -171,7 +197,6 @@ def check_vhost(vhost, subdomain, results_file, results_file_lock):
             pass
 
 def vhost_scan(naabu_output_path, vhost_output_dir):
-    tqdm.write("Starting vhost scan...")
     with open(vhost_wordlist_path, 'r') as file:
         vhosts = file.read().splitlines()
     with open(naabu_output_path, 'r') as naabu_file:
@@ -185,7 +210,6 @@ def vhost_scan(naabu_output_path, vhost_output_dir):
             for vhost, subdomain in vhost_subdomain_pairs:
                 check_vhost(vhost, subdomain, results_file, results_file_lock)
                 progress_bar.update(1)
-
 
 # Main code
 print_yellow("Please enter the target domain: ")
@@ -202,8 +226,13 @@ num_threads = int(input())
 print_yellow("Please enter the tool to use (naabu or httprobe): ")
 chosen_tool = input()
 
+print_yellow("Do you want to run the Waybackurls function? (yes or no): ")
+include_waybackurls = input().lower() == 'yes'
+
 # Create directories
-dirs = ["", "subfinder_results", f"{chosen_tool}_results", "Vhost_results", "ffuf_results", "waybackurls_results"]
+dirs = ["", "subfinder_results", f"{chosen_tool}_results", "Vhost_results", "ffuf_results"]
+if include_waybackurls:
+    dirs.append("waybackurls_results")
 for d in tqdm(dirs, desc="Creating directories"):
     os.makedirs(os.path.join(base_directory, directory_name, d), exist_ok=True)
 
@@ -213,7 +242,6 @@ if run_subfinder(target_domain, os.path.join(base_directory, directory_name, "su
         #tool_output = os.path.join(base_directory, directory_name, f"{chosen_tool}_results", f"{chosen_tool}_output.csv") # Change extension for httprobe if necessary
         tool_output = os.path.join(base_directory, directory_name, f"{chosen_tool}_results", f"{chosen_tool}_output.{'csv' if chosen_tool == 'naabu' else 'txt'}") 
         ffuf_output_file = os.path.join(base_directory, directory_name, "ffuf_results", "ffuf_results.csv")
-        tqdm.write("Starting ffuf and waybackurls...")
         with open(tool_output, 'r') as tool_output_file:
             if chosen_tool == 'naabu':
                 subdomains = [line[0] for line in csv.reader(tool_output_file)]
@@ -222,18 +250,17 @@ if run_subfinder(target_domain, os.path.join(base_directory, directory_name, "su
 
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             list(tqdm(executor.map(lambda subdomain: run_ffuf(subdomain, path_wordlist_path, ffuf_output_file), subdomains), total=len(subdomains), desc="Running ffuf"))
-            list(tqdm(executor.map(lambda subdomain: run_waybackurls(subdomain, os.path.join(base_directory, directory_name, "waybackurls_results")), subdomains), total=len(subdomains), desc="Running waybackurls"))
+            if include_waybackurls:
+                # tqdm.write("Starting waybackurls...")
+                if os_name == "Windows":
+                    list(tqdm(executor.map(lambda subdomain: run_waybackurls_windows(subdomain, os.path.join(base_directory, directory_name, "waybackurls_results")), subdomains), total=len(subdomains), desc="Running waybackurls"))
+                else:
+                    list(tqdm(executor.map(lambda subdomain: run_waybackurls_others(subdomain, os.path.join(base_directory, directory_name, "waybackurls_results")), subdomains), total=len(subdomains), desc="Running waybackurls"))
+                remove_empty_files(os.path.join(base_directory, directory_name, "waybackurls_results"))
+        
 
-        ##
-        # Call create_csv_output() after ThreadPoolExecutor block
-        csv_ffuf_output_file = ffuf_output_file.replace('.txt', '.csv')  # Or provide your own path for the csv file
+        csv_ffuf_output_file = ffuf_output_file.replace('.txt', '.csv') 
         create_csv_output(ffuf_output_file, csv_ffuf_output_file)
-        ##
-
-        # Print Waybackurls completion message here
-        tqdm.write("Waybackurls completed.")
-        # Remove any empty files generated by Waybackurls
-        remove_empty_files(os.path.join(base_directory, directory_name, "waybackurls_results"))
         vhost_scan(tool_output, os.path.join(base_directory, directory_name, "Vhost_results"))
 else:
     tqdm.write("Error: Subfinder did not complete successfully. Exiting.")
